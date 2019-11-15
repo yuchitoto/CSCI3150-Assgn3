@@ -121,7 +121,7 @@ int proc_create_vm(struct Kernel * kernel, int size) {
 	// Fill your codes below.
   int num_page_allocate = allocate_num_page(size);
 
-  if(size > VIRTUAL_SPACE_SIZE || num_page_allocate + kernel.allocated_pages > KERNEL_SPACE_SIZE / PAGE_SIZE)
+  if(size > VIRTUAL_SPACE_SIZE || num_page_allocate + kernel->allocated_pages > KERNEL_SPACE_SIZE / PAGE_SIZE)
     return -1;  //invalid process size
 
   for(int i=0; i<MAX_PROCESS_NUM; i++)
@@ -161,7 +161,7 @@ int addr_to_page_translation(int addr)
 int vm_read(struct Kernel * kernel, int pid, char * addr, int size, char * buf) {
 	// Fill your codes below.
   struct MMStruct *cur_proc = &kernel->mm[pid];
-  int init_pt = atoi(addr);
+  int init_pt =(int) (addr);
   if(init_pt + size > cur_proc->size)
     return -1;
 
@@ -174,7 +174,7 @@ int vm_read(struct Kernel * kernel, int pid, char * addr, int size, char * buf) 
     if(cur_proc->page_table[i].present == 0)
     {
       int j=0;
-      while(kernel->occupied_pages[j] != NULL)
+      while(kernel->occupied_pages[j] != 0)
         j++;
 
       kernel->occupied_pages[j] = 1;
@@ -206,7 +206,7 @@ int vm_read(struct Kernel * kernel, int pid, char * addr, int size, char * buf) 
 */
 int vm_write(struct Kernel * kernel, int pid, char * addr, int size, char * buf){
 	// Fill your codes below.
-  int init_pt = atoi(addr);
+  int init_pt = (int) (addr);
   struct MMStruct *cur_proc = &kernel->mm[pid];
   int num_page_allocate = allocate_num_page(cur_proc->size);
 
@@ -215,7 +215,7 @@ int vm_write(struct Kernel * kernel, int pid, char * addr, int size, char * buf)
 
   for(int k=0; k<size; k++)
   {
-    buf[k] = kernel->space[addr_translate(cur_proc->page_table[addr_to_page_translation(addr + k)].PFN) + (k % PAGE_SIZE)];
+    buf[k] = kernel->space[addr_translate(cur_proc->page_table[addr_to_page_translation(init_pt + k)].PFN) + (k % PAGE_SIZE)];
   }
 
   return 0;
@@ -246,7 +246,8 @@ int proc_exit_vm(struct Kernel * kernel, int pid){
   for (int i=0; i< num_page_allocate; i++)
   {
     clear_kernel_mem(kernel, cur_proc->page_table[i].PFN);
-    kernel->occupied_pages[cur_proc->page_table[i].PFN] = 0;
+    if(cur_proc->page_table[i].present != 0)
+      kernel->occupied_pages[cur_proc->page_table[i].PFN] = 0;
   }
 
   free(cur_proc->page_table);
