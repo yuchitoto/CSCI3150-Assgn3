@@ -106,6 +106,11 @@ void print_memory_mappings(struct Kernel * kernel, int pid) {
 	printf("\n");
 }
 
+int allocate_num_page(int size)
+{
+  return size / PAGE_SIZE + size % PAGE_SIZE;
+}
+
 /*
 	1. Check if a free process slot exists and if the there's enough free space (check allocated_pages).
 	2. Alloc space for page_table (the size of it depends on how many pages you need) and update allocated_pages.
@@ -114,6 +119,36 @@ void print_memory_mappings(struct Kernel * kernel, int pid) {
 */
 int proc_create_vm(struct Kernel * kernel, int size) {
 	// Fill your codes below.
+  int num_page_allocate = allocate_num_page(size);
+
+  if(size > VIRTUAL_SPACE_SIZE || num_page_allocate + kernel.allocated_pages > KERNEL_SPACE_SIZE / PAGE_SIZE)
+    return -1;  //invalid process size
+
+  for(int i=0; i<MAX_PROCESS_NUM; i++)
+    if(kernel->running[i] == 0)
+    {
+      kernel->running[i] = 1;
+      kernel->mm[i].size = size;
+      kernel->mm[i].page_table = (struct PTE*)malloc(sizeof(struct PTE) * num_page_allocate);
+      for(int k=0;k<num_page_allocate;k++)
+      {
+        kernel->mm[i].page_table[k].PFN = -1;
+        kernel->mm[i].page_table[k].present = 0;
+      }
+      kernel->allocated_pages += num_page_allocate;
+      return i;
+    }
+  return -1;  //no free processor
+}
+
+int addr_translate(int PFN)
+{
+  return PFN * PAGE_SIZE;
+}
+
+int addr_to_page_translation(int addr)
+{
+  return addr / PAGE_SIZE;
 }
 
 /*
@@ -125,6 +160,41 @@ int proc_create_vm(struct Kernel * kernel, int size) {
 */
 int vm_read(struct Kernel * kernel, int pid, char * addr, int size, char * buf) {
 	// Fill your codes below.
+  struct MMStruct *cur_proc = &kernel->mm[pid];
+  int init_pt = atoi(addr);
+  if(init_pt + size > cur_proc->size)
+    return -1;
+
+  int num_page_allocate = allocate_num_page(cur_proc->size);
+  int buf_pos = 0;
+  int cur_pos = 0;
+
+  for(int i=0; i<num_page_allocate; i++)
+  {
+    if(cur_proc->page_table[i].present == 0)
+    {
+      int j=0;
+      while(kernel->occupied_pages[j] != NULL)
+        j++;
+
+      kernel->occupied_pages[j] = 1;
+      cur_proc->page_table[i].PFN = j;
+      cur_proc->page_table[i].present = 1;
+    }
+
+    for(int k=0; k<PAGE_SIZE; k++)
+    {
+      cur_pos = addr_translate(i) + k;
+
+      if(cur_pos >= init_pt && cur_pos < init_pt + size)
+      {
+        buf[buf_pos] = kernel->space[addr_translate(cur_proc->page_table[i].PFN) + k];
+        buf_pos++;
+      }
+    }
+  }
+
+  return 0;
 }
 
 /*
@@ -136,6 +206,27 @@ int vm_read(struct Kernel * kernel, int pid, char * addr, int size, char * buf) 
 */
 int vm_write(struct Kernel * kernel, int pid, char * addr, int size, char * buf){
 	// Fill your codes below.
+  int init_pt = atoi(addr);
+  struct MMStruct *cur_proc = &kernel->mm[pid];
+  int num_page_allocate = allocate_num_page(cur_proc->size);
+
+  if(init_pt + size > cur_proc->size)
+    return -1;
+
+  for(int k=0; k<size; k++)
+  {
+    buf[k] = kernel->space[addr_translate(cur_proc->page_table[addr_to_page_translation(addr + k)].PFN) + (k % PAGE_SIZE)];
+  }
+
+  return 0;
+}
+
+void clear_kernel_mem(struct Kernel *kernel, int PFN)
+{
+  for(int i=0; i< PAGE_SIZE; i++)
+  {
+    kernel->space[addr_translate(PFN) + i] = 0;
+  }
 }
 
 /*
@@ -146,4 +237,23 @@ int vm_write(struct Kernel * kernel, int pid, char * addr, int size, char * buf)
 */
 int proc_exit_vm(struct Kernel * kernel, int pid){
 	// Fill your codes below.
+  if(kernel->running[pid] == 0)
+    return -1;
+  
+  struct MMStruct *cur_proc = &kernel->mm[pid];
+  int num_page_allocate = allocate_num_page(cur_proc->size);
+
+  for (int i=0; i< num_page_allocate; i++)
+  {
+    clear_kernel_mem(kernel, cur_proc->page_table[i].PFN);
+    kernel->occupied_pages[cur_proc->page_table[i].PFN] = 0;
+  }
+
+  free(cur_proc->page_table);
+  cur_proc->size=0;
+
+  kernel->running[pid] = 0;
+  kernel->allocated_pages -= num_page_allocate;
+
+  return 0;
 }
