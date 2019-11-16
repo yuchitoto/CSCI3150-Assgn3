@@ -151,6 +151,14 @@ int addr_to_page_translation(int addr)
   return addr / PAGE_SIZE;
 }
 
+int init_page(Kernel *kernel)
+{
+  int k=0;
+  while(kernel->occupied_pages[k]!=0)
+    k++;
+  return k;
+}
+
 /*
 	This function will read the range [addr, addr+size) from user space of a specific process to the buf (buf should be >= size).
 	1. Check if the reading range is out-of-bounds.
@@ -166,32 +174,18 @@ int vm_read(struct Kernel * kernel, int pid, char * addr, int size, char * buf) 
     return -1;
 
   int num_page_allocate = allocate_num_page(cur_proc->size);
-  int buf_pos = 0;
-  int cur_pos = 0;
 
-  for(int i=0; i<num_page_allocate; i++)
+  for(int k=0; k<size; k++)
   {
-    if(cur_proc->page_table[i].present == 0)
-    {
-      int j=0;
-      while(kernel->occupied_pages[j] != 0)
-        j++;
+    int page_num = addr_to_page_translation(init_pt + k);
 
-      kernel->occupied_pages[j] = 1;
-      cur_proc->page_table[i].PFN = j;
-      cur_proc->page_table[i].present = 1;
+    if(cur_proc->page_table[page_num].present == 0)
+    {
+      cur_proc->page_table[page_num].PFN = init_page(kernel);
+      cur_proc->page_table[page_num].present = 1;
     }
 
-    for(int k=0; k<PAGE_SIZE; k++)
-    {
-      cur_pos = addr_translate(i) + k;
-
-      if(cur_pos >= init_pt && cur_pos < init_pt + size)
-      {
-        buf[buf_pos] = kernel->space[addr_translate(cur_proc->page_table[i].PFN) + k];
-        buf_pos++;
-      }
-    }
+    buf[k] = kernel->space[addr_translate(cur_proc->page_table[page_num].PFN) + k % PAGE_SIZE]
   }
 
   return 0;
@@ -237,25 +231,5 @@ void clear_kernel_mem(struct Kernel *kernel, int PFN)
 */
 int proc_exit_vm(struct Kernel * kernel, int pid){
 	// Fill your codes below.
-
-  if(kernel->running[pid] == 0)
-    return -1;
-
-  struct MMStruct *cur_proc = &kernel->mm[pid];
-  int num_page_allocate = allocate_num_page(cur_proc->size);
-
-  for (int i=0; i< num_page_allocate; i++)
-  {
-    clear_kernel_mem(kernel, cur_proc->page_table[i].PFN);
-    if(cur_proc->page_table[i].present != 0)
-      kernel->occupied_pages[cur_proc->page_table[i].PFN] = 0;
-  }
-
-  free(cur_proc->page_table);
-  cur_proc->size=0;
-
-  kernel->running = 0;
-  kernel->allocated_pages -= num_page_allocate;
-
   return 0;
 }
