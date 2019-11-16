@@ -180,6 +180,9 @@ int vm_read(struct Kernel * kernel, int pid, char * addr, int size, char * buf) 
   {
     int page_num = addr_to_page_translation(init_pt + k);
 
+    if(page_num >= num_page_allocate)
+      return -1;
+
     if(cur_proc->page_table[page_num].present == 0)
     {
       cur_proc->page_table[page_num].PFN = init_page(kernel);
@@ -210,7 +213,18 @@ int vm_write(struct Kernel * kernel, int pid, char * addr, int size, char * buf)
 
   for(int k=0; k<size; k++)
   {
-    buf[k] = kernel->space[addr_translate(cur_proc->page_table[addr_to_page_translation(init_pt + k)].PFN) + (k % PAGE_SIZE)];
+    int page_num = addr_to_page_translation(init_pt + k);
+
+    if(page_num >= num_page_allocate)
+      return -1;
+
+    if(cur_proc->page_table[page_num].present == 0)
+    {
+      cur_proc->page_table[page_num].PFN = init_page(kernel);
+      cur_proc->page_table[page_num].present = 1;
+    }
+
+    buf[k] = kernel->space[addr_translate(cur_proc->page_table[page_num].PFN) + k % PAGE_SIZE];
   }
 
   return 0;
