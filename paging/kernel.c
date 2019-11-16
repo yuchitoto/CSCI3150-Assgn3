@@ -246,5 +246,26 @@ void clear_kernel_mem(struct Kernel *kernel, int PFN)
 */
 int proc_exit_vm(struct Kernel * kernel, int pid){
 	// Fill your codes below.
+  if(kernel->running[pid] == 0)
+    return -1;
+
+  struct MMStruct *cur_proc = &kernel->mm[pid];
+  int num_page_allocate = allocate_num_page(cur_proc->size);
+
+  for (int k=0; k<num_page_allocate; k++)
+  {
+    if(cur_proc->page_table[k].present != 0)
+    {
+      clear_kernel_mem(kernel, cur_proc->page_table[k].PFN)
+      kernel->occupied_pages[cur_proc->page_table[k].PFN] = 0;
+      cur_proc->page_table[k].present = 0;
+    }
+  }
+
+  cur_proc->size = 0;
+  free(cur_proc->page_table);
+  cur_proc->page_table = NULL;
+
+  kernel->running[pid] = 0;
   return 0;
 }
