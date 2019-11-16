@@ -256,7 +256,7 @@ int proc_exit_vm(struct Kernel * kernel, int pid){
   {
     if(cur_proc->page_table[k].present != 0)
     {
-      clear_kernel_mem(kernel, cur_proc->page_table[k].PFN)
+      clear_kernel_mem(kernel, cur_proc->page_table[k].PFN);
       kernel->occupied_pages[cur_proc->page_table[k].PFN] = 0;
       cur_proc->page_table[k].present = 0;
     }
