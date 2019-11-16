@@ -224,7 +224,7 @@ int vm_write(struct Kernel * kernel, int pid, char * addr, int size, char * buf)
       cur_proc->page_table[page_num].present = 1;
     }
 
-    buf[k] = kernel->space[addr_translate(cur_proc->page_table[page_num].PFN) + k % PAGE_SIZE];
+    kernel->space[addr_translate(cur_proc->page_table[page_num].PFN) + k % PAGE_SIZE] = buf[k];
   }
 
   return 0;
