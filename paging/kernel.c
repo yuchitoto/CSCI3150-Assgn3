@@ -151,11 +151,12 @@ int addr_to_page_translation(int addr)
   return addr / PAGE_SIZE;
 }
 
-int init_page(Kernel *kernel)
+int init_page(struct Kernel *kernel)
 {
   int k=0;
   while(kernel->occupied_pages[k]!=0)
     k++;
+  kernel->occupied_pages[k] = 1;
   return k;
 }
 
@@ -185,7 +186,7 @@ int vm_read(struct Kernel * kernel, int pid, char * addr, int size, char * buf) 
       cur_proc->page_table[page_num].present = 1;
     }
 
-    buf[k] = kernel->space[addr_translate(cur_proc->page_table[page_num].PFN) + k % PAGE_SIZE]
+    buf[k] = kernel->space[addr_translate(cur_proc->page_table[page_num].PFN) + k % PAGE_SIZE];
   }
 
   return 0;
