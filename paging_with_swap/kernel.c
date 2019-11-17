@@ -229,7 +229,7 @@ void lru_del(struct Kernel * kernel){
 		kernel->mm[pid].page_table[virtual_page_id].present = 0;
 		kernel->mm[pid].page_table[virtual_page_id].dirty = 0;
 		kernel->mm[pid].page_table[virtual_page_id].PFN = swap_page_id; // Map to swap file page id.
-		
+
 		// Delete the head of the LRU queue.
 		struct LRUEntry * temp = kernel->lru.head;
 		if(temp->next == NULL){
@@ -336,6 +336,50 @@ void lru_add(struct Kernel * kernel, int pid, int virtual_page_id){
 */
 int proc_create_vm(struct Kernel * kernel, int size){
 	// Fill your codes below.
+  int num_page_allocate = allocate_num_page(size);
+
+  if(size > VIRTUAL_SPACE_SIZE /*|| num_page_allocate + kernel->allocated_pages > KERNEL_SPACE_SIZE / PAGE_SIZE*/)
+    return -1;  //invalid process size
+
+  for(int i=0; i<MAX_PROCESS_NUM; i++)
+    if(kernel->running[i] == 0)
+    {
+      kernel->running[i] = 1;
+      kernel->mm[i].size = size;
+      kernel->mm[i].page_table = (struct PTE*)malloc(sizeof(struct PTE) * num_page_allocate);
+      for(int k=0;k<num_page_allocate;k++)
+      {
+        kernel->mm[i].page_table[k].PFN = -1;
+        kernel->mm[i].page_table[k].present = 0;
+        kernel->mm[i].page_table[k].dirty = 0;
+      }
+      kernel->allocated_pages += num_page_allocate;
+      return i;
+    }
+  return -1;  //no free processor
+}
+
+int addr_translate(int PFN)
+{
+  return PFN * PAGE_SIZE;
+}
+
+int addr_to_page_translation(int addr)
+{
+  return addr / PAGE_SIZE;
+}
+
+int init_page(struct Kernel *kernel)
+{
+  int k=0;
+  while(kernel->occupied_pages[k]!=0)
+    k++;
+
+  if(k >= KERNEL_SPACE_SIZE / PAGE_SIZE)
+    return -1;  //no unoccupied pages
+
+  kernel->occupied_pages[k] = 1;
+  return k;
 }
 
 /*
@@ -346,7 +390,27 @@ int proc_create_vm(struct Kernel * kernel, int size){
         Return 0 when success, -1 when failure (out of bounds).
 */
 int vm_read(struct Kernel * kernel, int pid, char * addr, int size, char * buf){
-	// Fill your codes below.
+	// Fill your codes below.struct MMStruct *cur_proc = &kernel->mm[pid];
+  int init_pt =(int) (addr);
+  if(init_pt + size > cur_proc->size)
+    return -1;
+
+  int num_page_allocate = allocate_num_page(cur_proc->size);
+
+  for(int k=0; k<size; k++)
+  {
+    int page_num = addr_to_page_translation(init_pt + k);
+
+    if(page_num >= num_page_allocate)
+      return -1;
+
+//init page
+    lru_add(kernel, pid, k);
+
+    buf[k] = kernel->space[addr_translate(cur_proc->page_table[page_num].PFN) + k % PAGE_SIZE];
+  }
+
+  return 0;
 }
 
 /*
@@ -358,6 +422,76 @@ int vm_read(struct Kernel * kernel, int pid, char * addr, int size, char * buf){
 */
 int vm_write(struct Kernel * kernel, int pid, char * addr, int size, char * buf){
 	// Fill your codes below.
+  int init_pt = (int) (addr);
+  struct MMStruct *cur_proc = &kernel->mm[pid];
+  int num_page_allocate = allocate_num_page(cur_proc->size);
+
+  if(init_pt + size > cur_proc->size)
+    return -1;
+
+  for(int k=0; k<size; k++)
+  {
+    int page_num = addr_to_page_translation(init_pt + k);
+
+    if(page_num >= num_page_allocate)
+      return -1;
+
+    lru_add(kernel, pid, k);
+
+    kernel->space[addr_translate(cur_proc->page_table[page_num].PFN) + k % PAGE_SIZE] = buf[k];
+    cur_proc->page_table[page_num].dirty = 1;
+  }
+
+  return 0;
+}
+
+int remove_lru(struct Kernel *kernel, int pid, int vm_page_num)
+{
+  struct LRUEntry *cur = kernel->lru->head;
+  while(cur != NULL)
+  {
+    if(cur->pid == pid && cur->virtual_page_id == vm_page_num)
+    {
+      //remove cur
+      if(cur->prev == NULL)
+      {
+        kernel->lru->head = cur->next;
+        if(cur->next != NULL)
+          cur->prev = NULL;
+      }
+      else
+      {
+        cur->prev->next = cur->next;
+        if(cur->next != NULL)
+          cur->next->prev = cur->prev;
+      }
+      return 0;
+    }
+    cur = cur->next;
+  }
+  return -1;
+}
+
+int remove_swap(struct Kernel *kernel, int pid, int vm_page_num)
+{
+  int pfn = kernel->mm[pid].page_table[vm_page_num].PFN;
+  int swap_page_id = kernel->si->swapper_space[pfn]; //this is the true swap_page_id
+
+  FILE *f = fopen("swap", "r+");
+  if(f == NULL)
+  {
+    printf("swap file io error\n");
+    exit(-1);
+  }
+  fseek(f, swap_page_id * PAGE_SIZE, SEEK_SET);
+  char nullify[PAGE_SIZE] = {'\0'};
+  fwrite(nullify, sizeof(char), PAGE_SIZE * sizeof(char), f);
+  fclose(f);
+
+  kernel->si->swap_map[swap_page_id] = 0;
+  kernel->si->swapper_space[pfn] = -1;
+
+  return 0;
 }
 
 /*
@@ -370,4 +504,28 @@ int vm_write(struct Kernel * kernel, int pid, char * addr, int size, char * buf)
 */
 int proc_exit_vm(struct Kernel * kernel, int pid){
 	// Fill your codes below.
+  if(kernel->running[pid] == 0)
+    return -1;
+
+  struct MMStruct *cur_proc = &kernel->mm[pid];
+  int num_page_allocate = allocate_num_page(cur_proc->size);
+
+  for (int k=0; k<num_page_allocate; k++)
+  {
+    if(cur_proc->page_table[k].present != 0)
+    {
+      memset(kernel->space + addr_translate(cur_proc->page_table[k].PFN), 0, PAGE_SIZE);
+      kernel->occupied_pages[cur_proc->page_table[k].PFN] = 0;
+      if(remove_lru(kernel, pid, k) == -1)
+        printf("cannot find page %d of process %d in LRU\n", k, pid);
+      cur_proc->page_table[k].present = 0;
+    }
+    else if(cur_proc->page_table[k].PFN == -1)
+      continue;
+    else
+    {
+      if(remove_swap(kernel, pid, k) != 0)
+        printf("cannot find page %d of process %d in swap\n", k, pid);
+    }
+  }
 }

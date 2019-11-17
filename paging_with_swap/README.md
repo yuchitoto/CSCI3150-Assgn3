@@ -11,3 +11,12 @@ memset(kernel->si->swap_map, 0, sizeof(char) * MAX_PROCESS_NUM * VIRTUAL_SPACE_S
 for(int i = 0; i < KERNEL_SPACE_SIZE / PAGE_SIZE; i++) {
   kernel->si->swapper_space[i] = -1;
 ```
+
+Use PFN stored in page table to locate resource in disk
+
+```c
+swap_page_id = kernel->si->swapper_space[pfn];
+fseek(f, swap_page_id * PAGE_SIZE, SEEK_SET);
+fwrite(kernel->space + PAGE_SIZE * pfn, sizeof(char), sizeof(char) * PAGE_SIZE, f);
+memset(kernel->space + PAGE_SIZE * pfn, 0, PAGE_SIZE);
+```
