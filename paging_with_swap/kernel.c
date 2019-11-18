@@ -410,7 +410,7 @@ int vm_read(struct Kernel * kernel, int pid, char * addr, int size, char * buf){
       return -1;
 
 //init page
-    lru_add(kernel, pid, k);
+    lru_add(kernel, pid, page_num);
 
     buf[k] = kernel->space[addr_translate(cur_proc->page_table[page_num].PFN) + k % PAGE_SIZE];
   }
@@ -441,7 +441,7 @@ int vm_write(struct Kernel * kernel, int pid, char * addr, int size, char * buf)
     if(page_num >= num_page_allocate)
       return -1;
 
-    lru_add(kernel, pid, k);
+    lru_add(kernel, pid, page_num);
 
     kernel->space[addr_translate(cur_proc->page_table[page_num].PFN) + k % PAGE_SIZE] = buf[k];
     cur_proc->page_table[page_num].dirty = 1;
