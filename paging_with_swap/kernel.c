@@ -328,6 +328,11 @@ void lru_add(struct Kernel * kernel, int pid, int virtual_page_id){
 	}
 }
 
+int allocate_num_page(int size)
+{
+  return size / PAGE_SIZE + size % PAGE_SIZE;
+}
+
 /*
         1. Check if there's a not-occupied process slot.
         2. Alloc space for page_table (the size of it depends on how many pages you need).
@@ -338,7 +343,7 @@ int proc_create_vm(struct Kernel * kernel, int size){
 	// Fill your codes below.
   int num_page_allocate = allocate_num_page(size);
 
-  if(size > VIRTUAL_SPACE_SIZE /*|| num_page_allocate + kernel->allocated_pages > KERNEL_SPACE_SIZE / PAGE_SIZE*/)
+  if(size > VIRTUAL_SPACE_SIZE)
     return -1;  //invalid process size
 
   for(int i=0; i<MAX_PROCESS_NUM; i++)
@@ -353,7 +358,6 @@ int proc_create_vm(struct Kernel * kernel, int size){
         kernel->mm[i].page_table[k].present = 0;
         kernel->mm[i].page_table[k].dirty = 0;
       }
-      kernel->allocated_pages += num_page_allocate;
       return i;
     }
   return -1;  //no free processor
@@ -484,7 +488,8 @@ int remove_swap(struct Kernel *kernel, int pid, int vm_page_num)
     exit(-1);
   }
   fseek(f, swap_page_id * PAGE_SIZE, SEEK_SET);
-  char nullify[PAGE_SIZE] = {'\0'};
+  char nullify[PAGE_SIZE];
+  memset(mullify, 0, PAGE_SIZE);
   fwrite(nullify, sizeof(char), PAGE_SIZE * sizeof(char), f);
   fclose(f);
 
