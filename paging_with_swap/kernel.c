@@ -470,6 +470,7 @@ int remove_lru(struct Kernel *kernel, int pid, int vm_page_num)
         if(cur->next != NULL)
           cur->next->prev = cur->prev;
       }
+      kernel->lru.num_entries--;
       return 0;
     }
     cur = cur->next;
