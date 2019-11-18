@@ -447,7 +447,7 @@ int vm_write(struct Kernel * kernel, int pid, char * addr, int size, char * buf)
 
 int remove_lru(struct Kernel *kernel, int pid, int vm_page_num)
 {
-  struct LRUEntry *cur = kernel->lru->head;
+  struct LRUEntry *cur = kernel->lru.head;
   while(cur != NULL)
   {
     if(cur->pid == pid && cur->virtual_page_id == vm_page_num)
@@ -455,7 +455,7 @@ int remove_lru(struct Kernel *kernel, int pid, int vm_page_num)
       //remove cur
       if(cur->prev == NULL)
       {
-        kernel->lru->head = cur->next;
+        kernel->lru.head = cur->next;
         if(cur->next != NULL)
           cur->prev = NULL;
       }
