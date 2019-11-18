@@ -396,6 +396,7 @@ int init_page(struct Kernel *kernel)
 int vm_read(struct Kernel * kernel, int pid, char * addr, int size, char * buf){
 	// Fill your codes below.struct MMStruct *cur_proc = &kernel->mm[pid];
   int init_pt =(int) (addr);
+  struct MMStruct *cur_proc = &kernel->mm[pid];
   if(init_pt + size > cur_proc->size)
     return -1;
 
@@ -489,7 +490,7 @@ int remove_swap(struct Kernel *kernel, int pid, int vm_page_num)
   }
   fseek(f, swap_page_id * PAGE_SIZE, SEEK_SET);
   char nullify[PAGE_SIZE];
-  memset(mullify, 0, PAGE_SIZE);
+  memset(nullify, 0, PAGE_SIZE);
   fwrite(nullify, sizeof(char), PAGE_SIZE * sizeof(char), f);
   fclose(f);
 
@@ -533,4 +534,5 @@ int proc_exit_vm(struct Kernel * kernel, int pid){
         printf("cannot find page %d of process %d in swap\n", k, pid);
     }
   }
+  return 0;
 }
