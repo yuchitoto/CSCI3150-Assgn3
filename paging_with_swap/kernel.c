@@ -535,5 +535,6 @@ int proc_exit_vm(struct Kernel * kernel, int pid){
         printf("cannot find page %d of process %d in swap\n", k, pid);
     }
   }
+  kernel->running[pid] = 0;
   return 0;
 }
